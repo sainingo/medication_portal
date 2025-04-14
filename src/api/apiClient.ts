@@ -3,7 +3,7 @@ import axios from 'axios';
 import { authService } from '../utils/authService';
 
 const OPENMRS_BASE_URL = 'https://ngx.ampath.or.ke/amrs';
-const ETL_URL = 'https://ngx.ampath.or.ke/etl-server-test-internal7/etl'; //'http://localhost:8002/etl';
+const ETL_URL = 'http://localhost:8002/etl';
 
 const API_BASE_URL = import.meta.env.MODE === 'production' ? import.meta.env.VITE_API_BASE_URL : ETL_URL;
 
