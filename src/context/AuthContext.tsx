@@ -73,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log("AuthProvider - Logging out...");
     authService.logout();
     setUser(null);
+    sessionStorage.removeItem('pickup_location_name');
     setIsAuthenticated(false);
   };
   

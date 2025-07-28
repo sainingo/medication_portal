@@ -9,6 +9,8 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Hash,
+  Timer
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -20,6 +22,7 @@ interface MedicationDetails {
   duration: string;
   frequency: string;
   dispensed: string;
+  numberOfPills: string;
 }
 
 interface DisplayPatient {
@@ -32,7 +35,7 @@ interface DisplayPatient {
   dispense_status: string;
 }
 
-type SortField = 'identifier' | 'prescription_date' | 'medications' | 'dispense_status';
+type SortField = 'identifier' | 'prescription_date' | 'medications' | 'dispense_status' | 'frequency' | 'duration' | 'numberOfPills';
 type SortDirection = 'asc' | 'desc';
 
 interface PatientTableProps {
@@ -46,37 +49,24 @@ export function PatientTable({ patients, onSelect }: PatientTableProps) {
     direction: SortDirection;
   }>({ field: 'prescription_date', direction: 'desc' });
 
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
 
-  const sortedPatients = [...patients].sort((a, b) => {
+  const sortedPatients = [...patients].sort((a: any, b: any) => {
     if (sortConfig.field === 'medications') {
-      const aMeds = a.medications.map(m => m.name).join(', ');
-      const bMeds = b.medications.map(m => m.name).join(', ');
-      
-      if (aMeds < bMeds) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
-      }
-      if (aMeds > bMeds) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
-      return 0;
+      const aMeds = a.medications.map((m: any) => m.name).join(', ');
+      const bMeds = b.medications.map((m: any) => m.name).join(', ');
+      return sortConfig.direction === 'asc' ? aMeds.localeCompare(bMeds) : bMeds.localeCompare(aMeds);
     }
     
     const aValue = a[sortConfig.field] || '';
     const bValue = b[sortConfig.field] || '';
 
-    if (aValue < bValue) {
-      return sortConfig.direction === 'asc' ? -1 : 1;
-    }
-    if (aValue > bValue) {
-      return sortConfig.direction === 'asc' ? 1 : -1;
-    }
-    return 0;
+    return sortConfig.direction === 'asc' ? 
+      String(aValue).localeCompare(String(bValue)) : 
+      String(bValue).localeCompare(String(aValue));
   });
 
-  // Calculate pagination
   const totalPages = Math.ceil(sortedPatients.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -105,7 +95,7 @@ export function PatientTable({ patients, onSelect }: PatientTableProps) {
 
   const handleItemsPerPageChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setItemsPerPage(Number(event.target.value));
-    setCurrentPage(1); // Reset to first page when changing items per page
+    setCurrentPage(1);
   };
 
   return (
@@ -172,6 +162,33 @@ export function PatientTable({ patients, onSelect }: PatientTableProps) {
                 <th
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+                >
+                  <div className="flex items-center">
+                    <Clock className="mr-1 h-4 w-4" />
+                    Frequency
+                  </div>
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+                >
+                  <div className="flex items-center">
+                    <Hash className="mr-1 h-4 w-4" />
+                    Pills
+                  </div>
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+                >
+                  <div className="flex items-center">
+                    <Timer className="mr-1 h-4 w-4" />
+                    Duration (days)
+                  </div>
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
                   onClick={() => requestSort('dispense_status')}
                 >
                   <div className="flex cursor-pointer items-center">
@@ -189,8 +206,7 @@ export function PatientTable({ patients, onSelect }: PatientTableProps) {
                 currentItems.map((patient) => (
                   <tr
                     key={patient.patient_id}
-                    className="group cursor-pointer transition-colors hover:bg-gray-50"
-                    onClick={() => onSelect(patient)}
+                    className="group hover:bg-gray-50"
                   >
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="font-medium text-gray-900">
@@ -208,22 +224,33 @@ export function PatientTable({ patients, onSelect }: PatientTableProps) {
                     <td className="px-6 py-4">
                       <div className="space-y-2">
                         {patient.medications.map((med, idx) => (
-                          <div key={idx} className="flex flex-col space-y-1">
-                            <div className="flex items-center">
-                              <Pill className="mr-2 h-4 w-4 text-blue-500" />
-                              <span className="font-medium text-gray-900">{med.name}</span>
-                            </div>
-                            <div className="ml-6 flex items-center space-x-4 text-sm text-gray-500">
-                              <span className="flex items-center">
-                                <Clock className="mr-1 h-3 w-3" />
-                                {med.frequency}
-                              </span>
-                              <span>•</span>
-                              <span>{med.duration} days</span>
-                            </div>
+                          <div key={idx} className="flex items-center">
+                            <Pill className="mr-2 h-4 w-4 text-blue-500" />
+                            <span className="font-medium text-gray-900">{med.name}</span>
                           </div>
                         ))}
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {patient.medications.map((med, idx) => (
+                        <div key={idx} className="text-sm text-gray-500">
+                          {med.frequency}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      {patient.medications.map((med, idx) => (
+                        <div key={idx} className="text-sm text-gray-500">
+                          {med.numberOfPills}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      {patient.medications.map((med, idx) => (
+                        <div key={idx} className="text-sm text-gray-500">
+                          {med.duration}
+                        </div>
+                      ))}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <span
@@ -239,11 +266,8 @@ export function PatientTable({ patients, onSelect }: PatientTableProps) {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right">
                       <button
-                        className="rounded-md bg-blue-50 px-3 py-1 text-sm font-medium text-blue-600 opacity-0 transition-opacity hover:bg-blue-100 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelect(patient);
-                        }}
+                        className="rounded-md bg-blue-50 px-3 py-1 text-sm font-medium text-blue-600 hover:bg-blue-100"
+                        onClick={() => onSelect(patient)}
                       >
                         View Details
                       </button>
@@ -252,7 +276,7 @@ export function PatientTable({ patients, onSelect }: PatientTableProps) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center">
+                  <td colSpan={8} className="px-6 py-8 text-center">
                     <div className="text-gray-500">
                       No patients found
                     </div>
@@ -264,7 +288,6 @@ export function PatientTable({ patients, onSelect }: PatientTableProps) {
         </div>
       </div>
 
-      {/* Pagination Controls */}
       <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
         <div className="flex flex-1 justify-between sm:hidden">
           <button

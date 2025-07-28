@@ -1,62 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
   RefreshCw,
   CheckCircle,
-  TrendingUp,
 } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { usePatients } from '@/hooks/usePatients';
-import { authService } from '@/utils/authService';
-
-interface StatCardProps {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  trend?: number;
-  className?: string;
-  onClick?: () => void;
-}
-
-function StatCard({ title, value, icon, trend, className, onClick }: StatCardProps) {
-  return (
-    <div 
-      className={cn(
-        "bg-white rounded-lg p-6 shadow-sm transition-all duration-200",
-        onClick && "cursor-pointer hover:shadow-md hover:scale-[1.02]",
-        className
-      )}
-      onClick={onClick}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="rounded-full bg-blue-50 p-3">
-            {icon}
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-gray-500">{title}</h3>
-            <p className="text-2xl font-semibold text-gray-900">{value}</p>
-          </div>
-        </div>
-        {trend !== undefined && (
-          <div className="flex items-center gap-1">
-            <TrendingUp className={cn(
-              "h-4 w-4",
-              trend >= 0 ? "text-green-500" : "text-red-500"
-            )} />
-            <span className={cn(
-              "text-sm font-medium",
-              trend >= 0 ? "text-green-500" : "text-red-500"
-            )}>
-              {trend}%
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+import { StatCard } from './StatCard';
+import { DashboardChart } from './DashboardChart';
+import { colors } from '../lib/utils';
+import { usePatients } from '../hooks/usePatients';
+import { authService } from '../utils/authService';
 
 export function DashboardOverview() {
   const navigate = useNavigate();
@@ -64,6 +17,15 @@ export function DashboardOverview() {
   const patientUuid = patient?.userProperties?.["grantAccessToLocationOperationalData[0]"];
   const { data: patientsData, isPending, error } = usePatients(patientUuid);
   
+  useEffect(() => {
+    if (patientsData?.result && !isPending && !error && patientsData.result.length > 0) {
+      const pickupLocationName = patientsData.result[0].pickup_location_name;
+      if (pickupLocationName) {
+        sessionStorage.setItem('pickup_location_name', pickupLocationName);
+      }
+    }
+  }, [patientsData, isPending, error]);
+
   const dashboardStats = useMemo(() => {
     if (!patientsData?.result || isPending || error) {
       return {
@@ -112,26 +74,33 @@ export function DashboardOverview() {
   if (error) return <div className="bg-red-50 text-red-600 p-4 rounded-lg">Error loading patient data</div>;
 
   return (
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      <StatCard
-        title="Total Patients"
-        value={dashboardStats.totalPatients}
-        icon={<Users className="h-6 w-6 text-blue-600" />}
-        trend={5}
-      />
-      <StatCard
-        title="Pending Refills"
-        value={dashboardStats.pendingRefills}
-        icon={<RefreshCw className="h-6 w-6 text-amber-600" />}
-        onClick={() => handleRefillClick('pending')}
-      />
-      <StatCard
-        title="Completed Refills"
-        value={dashboardStats.completedRefills}
-        icon={<CheckCircle className="h-6 w-6 text-green-600" />}
-        trend={12}
-        onClick={() => handleRefillClick('completed')}
-      />
+    <div className="space-y-6 p-1.5">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          title="Total Patients"
+          value={dashboardStats.totalPatients}
+          icon={<Users />}
+          trend={5}
+          onClick={() => navigate('/patients')}
+          iconColor={colors.totalPatients}
+        />
+        <StatCard
+          title="Pending Refills"
+          value={dashboardStats.pendingRefills}
+          icon={<RefreshCw />}
+          onClick={() => handleRefillClick('pending')}
+          iconColor={colors.pendingRefills}
+        />
+        <StatCard
+          title="Completed Refills"
+          value={dashboardStats.completedRefills}
+          icon={<CheckCircle />}
+          trend={12}
+          onClick={() => handleRefillClick('completed')}
+          iconColor={colors.completedRefills}
+        />
+      </div>
+      <DashboardChart data={dashboardStats} />
     </div>
   );
 }

@@ -32,11 +32,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     // Then manually navigate to login
     navigate('/login');
   };
-
+// #4c6bfe
   return (
-    <div className="flex h-full flex-col bg-[#1a2942] w-64">
-      <div className="flex h-16 items-center gap-2 px-6 border-b border-[#0672c4]">
-        <Pill className="h-8 w-8 text-[#039dfc]" />
+    <div className="flex h-full flex-col bg-[#91cf50] w-64">
+      <div className="flex h-16 items-center gap-2 px-6 border-b border-[#2779c2]">
+        <Pill className="h-8 w-8 text-white" />
         <span className="text-lg font-semibold text-white">MedicationPortal</span>
       </div>
       
@@ -51,8 +51,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               className={cn(
                 'group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200',
                 pathname === item.path
-                  ? 'bg-[#2a3f5f] text-[#AABBCC]'
-                  : 'text-gray-300 hover:bg-[#243552] hover:text-[#AABBCC]'
+                  ? 'bg-[#0d5c9e] text-white'
+                  : 'text-white hover:bg-[#2779c2] hover:text-white'
               )}
             >
               <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
@@ -61,11 +61,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </nav>
-
-      <div className="border-t border-[#2a3f5f] p-4">
+      <div className="border-t border-[#2779c2] p-4">
         <button
           onClick={handleLogout}
-          className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-[#243552] hover:text-[#AABBCC] transition-colors duration-200"
+          className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-white hover:bg-[#2779c2] hover:text-white transition-colors duration-200"
         >
           <LogOut className="mr-3 h-5 w-5" />
           Logout

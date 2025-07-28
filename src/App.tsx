@@ -17,7 +17,10 @@ const queryClient = new QueryClient({
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
+      {/* for prod ensure this basename is applied
+        /* basename="/med-portal"
+       */}
+      <Router basename="/med-portal">
       <AuthProvider>
       <AppRoutes />
       </AuthProvider>

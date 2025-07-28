@@ -9,6 +9,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const {user } = useAuth();
+  const pickupLocationName = sessionStorage.getItem('pickup_location_name');
 
   return (
     <header className="h-16 bg-white shadow">
@@ -34,10 +35,10 @@ export function Header({ onMenuClick }: HeaderProps) {
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-medium text-gray-900">{user?.display}</p>
-              <p className="text-sm text-gray-500">{mockUser.role}</p>
+              <p className="text-sm text-gray-500">{pickupLocationName}</p>
             </div>
             <div className="h-8 w-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
-              {mockUser.name.charAt(0)}
+              {user?.display.charAt(0).toUpperCase()}
             </div>
           </div>
         </div>

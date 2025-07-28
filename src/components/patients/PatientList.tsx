@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, ArrowLeft } from 'lucide-react';
 import { PatientTable } from '../PatientCard';
 import { SearchBar } from '../SearchBar';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ interface MedicationDetails {
   duration: string;
   frequency: string;
   dispensed: string;
+  numberOfPills: string;
 }
 
 interface DisplayPatient {
@@ -33,9 +34,10 @@ export function PatientList() {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'completed' | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-    const patient = authService.getUserData();
-    const patientUuid = patient?.userProperties?.["grantAccessToLocationOperationalData[0]"];
-    const { data: patientsData, isPending, error } = usePatients(patientUuid);
+  const patient = authService.getUserData();
+  const patientUuid = patient?.userProperties?.["grantAccessToLocationOperationalData[0]"];
+  const { data: patientsData, isPending, error } = usePatients(patientUuid);
+
   useEffect(() => {
     const state = location.state as { filterStatus?: 'pending' | 'completed' };
     if (state?.filterStatus) {
@@ -44,7 +46,6 @@ export function PatientList() {
     }
   }, [location.state, navigate]);
 
-  // Transform the raw data into a format suitable for display
   const transformedPatients = useMemo(() => {
     if (!patientsData?.result || isPending || error) {
       return [];
@@ -59,11 +60,10 @@ export function PatientList() {
           patient_id: item.patient_id,
           patient_uuid: item.person_uuid,
           pickup_location_uuid: item.pickup_location_uuid,
-          adult_return_location_uuid: item.adult_return_location_uuid,
-          art_regimen_line: item.art_regimen_line,
-          art_regimen_uuid: item.art_regimen_uuid,
           identifier: item.patient_identifier,
           prescription_date: item.prescription_date,
+          return_to_clinic_date: item.return_to_clinic_date || "N/A",
+          medication_pickup_date: item.medication_pickup_date || "N/A",
           medications: [],
           dispense_status: item.dispense_status
         });
@@ -78,13 +78,17 @@ export function PatientList() {
           drug_uuid: item.drug_uuid,
           duration: patientsDetails.find((detail: any) => 
             detail.patient_id === item.patient_id && 
-            detail.questionId === "MEDICATION_DURATION"
+            detail.questionId === "DURATION_IN_DAYS"
           )?.answer || "N/A",
           frequency: patientsDetails.find((detail: any) => 
             detail.patient_id === item.patient_id && 
             detail.questionId === "MEDICATION_FREQUENCY"
           )?.answer || "N/A",
           dispensed: patientsDetails.find((detail: any) => 
+            detail.patient_id === item.patient_id && 
+            detail.questionId === "MEDICATION_DISPENSED"
+          )?.answer || "N/A",
+          numberOfPills: patientsDetails.find((detail: any) => 
             detail.patient_id === item.patient_id && 
             detail.questionId === "MEDICATION_DISPENSED"
           )?.answer || "N/A"
@@ -127,6 +131,10 @@ export function PatientList() {
     setCurrentPage(1);
   };
 
+  const handleBack = () => {
+    navigate(-1);
+  };
+
   if (isPending) {
     return (
       <div className="flex h-48 items-center justify-center">
@@ -150,6 +158,16 @@ export function PatientList() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-6">
+        <button
+          onClick={handleBack}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          Back
+        </button>
+      </div>
+
       <div className="flex flex-col gap-4 p-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium text-gray-900">Patient Line List</h2>

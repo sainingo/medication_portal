@@ -15,11 +15,15 @@ import {
   Syringe,
   Stethoscope,
   ClipboardList,
-  Edit
+  Edit,
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
-import { createEncounter, getEncountersByPatientId, updateEncounter } from "@/api/patient";
+import {
+  createEncounter,
+  getEncountersByPatientId,
+  updateEncounter,
+} from "@/api/patient";
 import { useAuth } from "@/context/AuthContext";
 
 interface MedicationDetails {
@@ -40,6 +44,8 @@ interface DisplayPatient {
   pickup_location_uuid: string;
   identifier: string;
   prescription_date: string;
+  medication_pickup_date: string;
+  return_to_clinic_date: string;
   medications: MedicationDetails[];
   dispense_status: string;
 }
@@ -55,11 +61,11 @@ interface RefillFormState {
   wasVisitScheduled: boolean;
   drugPickupPerson: string;
   reasonForNotPickingOwn: string;
-  isOnArt: boolean;
+  isOnArt: boolean | null;
   lineOfART: string;
   artRegimen: string;
-  isOnPcp: boolean;
-  isOnTb: boolean;
+  isOnPcp: boolean | null;
+  isOnTb: boolean | null;
   tbRegimen: string;
   cryptococcusTx: string;
   medications: Array<{
@@ -73,12 +79,12 @@ interface RefillFormState {
     duration: string;
     route: string;
   }>;
-  dispenseCondom: boolean;
-  familyPlanning: boolean;
-  patientPregnant: boolean;
-  patientSick: boolean;
-  adherenceConcerns: boolean;
-  refillsPickedUp: boolean;
+  dispenseCondom: boolean | null;
+  familyPlanning: boolean | null;
+  patientPregnant: boolean | null;
+  patientSick: boolean | null;
+  adherenceConcerns: boolean | null;
+  refillsPickedUp: boolean | null;
   clinicalNotes: string;
   pharmacistNotes: string;
 }
@@ -90,19 +96,23 @@ export function PatientDetails() {
   const [showRefillForm, setShowRefillForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [activeSection, setActiveSection] = useState<string | null>("encounter");
+  const [activeSection, setActiveSection] = useState<string | null>(
+    "encounter"
+  );
   const [encounters, setEncounters] = useState<any[]>([]);
-  const [currentEncounterId, setCurrentEncounterId] = useState<string | null>(null);
+  const [currentEncounterId, setCurrentEncounterId] = useState<string | null>(
+    null
+  );
   const [drugUuids, setDrugUuids] = useState<string[]>([]);
   const [locationUuid, setLocationUuid] = useState("");
   const [artLineRegimenUuid, setArtLineRegimenUuid] = useState("");
-    const {user } = useAuth();
+  const { user } = useAuth();
 
   // Get the ART regimen from patient medications
   const getArtRegimen = () => {
     if (patient?.medications && patient.medications.length > 0) {
       // we also need to store the drug_uuid since it can be used as value when creating an encounter
-      return patient.medications.map(med => med.name).join(", ");
+      return patient.medications.map((med) => med.name).join(", ");
     }
     return "";
   };
@@ -110,35 +120,14 @@ export function PatientDetails() {
   useEffect(() => {
     if (patient?.medications && patient.medications.length > 0) {
       // Extract UUIDs from medications
-      const uuids = patient.medications.map(med => med.drug_uuid || `drug-${med.name}`);
-      setLocationUuid(patient.adult_return_location_uuid)
+      const uuids = patient.medications.map(
+        (med) => med.drug_uuid || `drug-${med.name}`
+      );
+      setLocationUuid(patient.adult_return_location_uuid);
       setArtLineRegimenUuid(patient.art_regimen_uuid);
       setDrugUuids(uuids);
     }
   }, [patient]);
-
-  // useEffect(() => {
-  //   const loadEncounters = async () => {
-  //     if (!patient) return;
-  
-  //     try {
-  //       const rawEncounters = await getEncountersByPatientId(patient.patient_id.toString());
-        
-  //       // Replace with actual medication dispense date concept UUID
-  //       const MEDICATION_DISPENSE_DATE_CONCEPT = 'YOUR_CONCEPT_UUID_HERE';
-        
-  //       const filteredEncounters = rawEncounters.filter((encounter: any) => 
-  //         encounter.obs.some((obs: any) => obs.concept === MEDICATION_DISPENSE_DATE_CONCEPT)
-  //       );
-  
-  //       setEncounters(filteredEncounters);
-  //     } catch (error) {
-  //       console.error("Failed to fetch encounters:", error);
-  //     }
-  //   };
-  
-  //   loadEncounters();
-  // }, [patient]);
 
   const [refillForm, setRefillForm] = useState<RefillFormState>({
     encounterDatetime: new Date().toISOString(),
@@ -151,20 +140,20 @@ export function PatientDetails() {
     wasVisitScheduled: false,
     drugPickupPerson: "",
     reasonForNotPickingOwn: "",
-    isOnArt: patient?.medications.length > 0 || false,
-    lineOfART: patient?.art_regimen_line,
+    isOnArt: null,
+    lineOfART: patient?.art_regimen_line || "",
     artRegimen: getArtRegimen(),
-    isOnPcp: false,
-    isOnTb: false,
+    isOnPcp: null,
+    isOnTb: null,
     tbRegimen: "",
     cryptococcusTx: "",
     medications: [],
-    dispenseCondom: false,
-    familyPlanning: false,
-    patientPregnant: false,
-    patientSick: false,
-    adherenceConcerns: false,
-    refillsPickedUp: false,
+    dispenseCondom: null,
+    familyPlanning: null,
+    patientPregnant: null,
+    patientSick: null,
+    adherenceConcerns: null,
+    refillsPickedUp: null,
     clinicalNotes: "",
     pharmacistNotes: "",
   });
@@ -178,79 +167,97 @@ export function PatientDetails() {
 
   // Function to create the OpenMRS-compatible encounter payload
   const buildEncounterPayload = () => {
+    if (!user?.person?.uuid) {
+      throw new Error("Provider UUID is missing. Please ensure you are logged in with a provider account.");
+  }
     // Prepare the observation array
     const observations = [
       // Patient type
-      { 
-        concept: "a89eea66-1350-11df-a1f1-0026b9348838", 
-        value: "a89ee8ea-1350-11df-a1f1-0026b9348838" // adult 
+      {
+        concept: "a89eea66-1350-11df-a1f1-0026b9348838",
+        value: "a89ee8ea-1350-11df-a1f1-0026b9348838", // adult
       },
-      // Is on ART
-      { 
-        concept: "a89ae254-1350-11df-a1f1-0026b9348838", 
-        value: refillForm.isOnArt ? "a899b35c-1350-11df-a1f1-0026b9348838" : "a899b42e-1350-11df-a1f1-0026b9348838" 
-      }
     ];
 
-    // Add ART regimen if patient is on ART
-    if (refillForm.isOnArt && drugUuids.length > 0) {
-      // If you need to submit multiple drug UUIDs as separate observations
-      drugUuids.forEach(uuid => {
-        observations.push({
-          concept: "a899cf5e-1350-11df-a1f1-0026b9348838", // ART Regimen concept
-          value: uuid // Use the UUID instead of the drug name
-        });
+    // Only add ART observation if user has made a selection
+    if (refillForm.isOnArt !== null) {
+      observations.push({
+        concept: "a89ae254-1350-11df-a1f1-0026b9348838",
+        value: refillForm.isOnArt
+          ? "a899b35c-1350-11df-a1f1-0026b9348838"
+          : "a899b42e-1350-11df-a1f1-0026b9348838",
       });
+
+      // Add ART regimen if patient is on ART and there are drug UUIDs
+      if (refillForm.isOnArt && drugUuids.length > 0) {
+        // If you need to submit multiple drug UUIDs as separate observations
+        drugUuids.forEach((uuid) => {
+          observations.push({
+            concept: "a899cf5e-1350-11df-a1f1-0026b9348838", // ART Regimen concept
+            value: uuid, // Use the UUID instead of the drug name
+          });
+        });
+      }
     }
 
     // Add Line of ART if specified
-    if (refillForm.lineOfART) {
+    if (refillForm.lineOfART && artLineRegimenUuid) {
       observations.push({
         concept: "04616f5d-b961-4f41-bbd7-bcc0dd235577", // Line of ART concept
-        value: artLineRegimenUuid
+        value: artLineRegimenUuid,
       });
     }
 
-    // Add other assessment observations
-    if (refillForm.dispenseCondom) {
+    // Add assessment observations only if they have been selected
+    if (refillForm.dispenseCondom !== null) {
       observations.push({
         concept: "a8b034d8-1350-11df-a1f1-0026b9348838", // Condom provided concept
-        value: "a899b35c-1350-11df-a1f1-0026b9348838" // YES
+        value: refillForm.dispenseCondom
+          ? "a899b35c-1350-11df-a1f1-0026b9348838"
+          : "a899b42e-1350-11df-a1f1-0026b9348838",
       });
     }
 
-    if (refillForm.familyPlanning) {
+    if (refillForm.familyPlanning !== null) {
       observations.push({
         concept: "774961c6-232f-4332-8a9f-f5c55ebe86d0", // Family Planning Method concept
-        value: "a899b35c-1350-11df-a1f1-0026b9348838" // YES
+        value: refillForm.familyPlanning
+          ? "a899b35c-1350-11df-a1f1-0026b9348838"
+          : "a899b42e-1350-11df-a1f1-0026b9348838",
       });
     }
 
-    if (refillForm.patientSick) {
+    if (refillForm.patientSick !== null) {
       observations.push({
         concept: "a8a18f14-1350-11df-a1f1-0026b9348838", // Patient sick concept
-        value: "a899b42e-1350-11df-a1f1-0026b9348838" // YES
+        value: refillForm.patientSick
+          ? "a899b35c-1350-11df-a1f1-0026b9348838"
+          : "a899b42e-1350-11df-a1f1-0026b9348838",
       });
     }
 
-    if (refillForm.adherenceConcerns) {
+    if (refillForm.adherenceConcerns !== null) {
       observations.push({
         concept: "a89d15f6-1350-11df-a1f1-0026b9348838", // Adherence concerns concept
-        value: "a899b35c-1350-11df-a1f1-0026b9348838"
+        value: refillForm.adherenceConcerns
+          ? "a899b35c-1350-11df-a1f1-0026b9348838"
+          : "a899b42e-1350-11df-a1f1-0026b9348838",
       });
     }
 
-    if (refillForm.refillsPickedUp) {
+    if (refillForm.refillsPickedUp !== null) {
       observations.push({
         concept: "a70d718f-90ad-4269-bb8a-6db51a68e628", // Medication picked up concept
-        value: "a899b35c-1350-11df-a1f1-0026b9348838" // YES
+        value: refillForm.refillsPickedUp
+          ? "a899b35c-1350-11df-a1f1-0026b9348838"
+          : "a899b42e-1350-11df-a1f1-0026b9348838",
       });
     }
 
     if (refillForm.pharmacistNotes) {
       observations.push({
         concept: "23f710cc-7f9c-4255-9b6b-c3e240215dba", // Pharmacist notes concept
-        value: refillForm.pharmacistNotes
+        value: refillForm.pharmacistNotes,
       });
     }
 
@@ -260,17 +267,18 @@ export function PatientDetails() {
       encounterType: "987009c6-6f24-43f7-9640-c285d6553c63", // Medication refill encounter type
       encounterDatetime: refillForm.encounterDatetime,
       location: locationUuid, // Default location if not specified
-//       encounterProviders: [
-//     {
-//         provider: user?.person?.uuid,  // UUID of the provider
-//         encounterRole: user?.roles[0].uuid,  // UUID of the role
-//     }
-// ],
+      encounterProviders: [
+        {
+          provider: "5febfead-a72f-4cfc-be3d-f3620a8e6d51", // UUID of the provider
+          encounterRole: "a0b03050-c99b-11e0-9572-0800200c9a66", // UUID of the role
+        },
+      ],
       obs: observations,
       form: "a593133a-a659-40f4-9ad4-663356eae838",
-      visit: "0becf5b9-0522-47c8-960c-c9d660c56501" // Assuming a visit exists or is created
+      visit: "0becf5b9-0522-47c8-960c-c9d660c56501", // Assuming a visit exists or is created
     };
   };
+
 
   const handleSubmitRefill = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -279,7 +287,6 @@ export function PatientDetails() {
 
     try {
       const encounterPayload = buildEncounterPayload();
-      console.log("---encounterPayload", encounterPayload)
 
       // Check if we're updating an existing encounter or creating a new one
       let response;
@@ -292,24 +299,29 @@ export function PatientDetails() {
       }
 
       // Add the new encounter to the UI state
-      setEncounters(prev => [{
-        id: response.uuid || Date.now(), // Use the UUID from the response if available
-        datetime: refillForm.encounterDatetime,
-        type: "Medication Refill",
-        details: {
-          isOnArt: refillForm.isOnArt,
-          artRegimen: refillForm.artRegimen,
-          dispenseCondom: refillForm.dispenseCondom,
-          familyPlanning: refillForm.familyPlanning,
-          patientPregnant: refillForm.patientPregnant,
-          patientSick: refillForm.patientSick,
-          adherenceConcerns: refillForm.adherenceConcerns,
-          refillsPickedUp: refillForm.refillsPickedUp,
-        }
-      }, ...prev]);
+      setEncounters((prev) => [
+        {
+          id: response.uuid || Date.now(), // Use the UUID from the response if available
+          datetime: refillForm.encounterDatetime,
+          type: "Medication Refill",
+          details: {
+            isOnArt: refillForm.isOnArt,
+            artRegimen: refillForm.artRegimen,
+            dispenseCondom: refillForm.dispenseCondom,
+            familyPlanning: refillForm.familyPlanning,
+            patientPregnant: refillForm.patientPregnant,
+            patientSick: refillForm.patientSick,
+            adherenceConcerns: refillForm.adherenceConcerns,
+            refillsPickedUp: refillForm.refillsPickedUp,
+          },
+        },
+        ...prev,
+      ]);
 
       setShowRefillForm(false);
       setCurrentEncounterId(null);
+
+      // Reset form state with null values for boolean fields
       setRefillForm({
         encounterDatetime: new Date().toISOString(),
         provider: "",
@@ -321,28 +333,39 @@ export function PatientDetails() {
         wasVisitScheduled: false,
         drugPickupPerson: "",
         reasonForNotPickingOwn: "",
-        isOnArt: false,
+        isOnArt: null,
         lineOfART: "",
         artRegimen: "",
-        isOnPcp: false,
-        isOnTb: false,
+        isOnPcp: null,
+        isOnTb: null,
         tbRegimen: "",
         cryptococcusTx: "",
         medications: [],
-        dispenseCondom: false,
-        patientPregnant: false,
-        refillsPickedUp: false,
-        patientSick: false,
-        adherenceConcerns: false,
-        familyPlanning: false,
+        dispenseCondom: null,
+        patientPregnant: null,
+        refillsPickedUp: null,
+        patientSick: null,
+        adherenceConcerns: null,
+        familyPlanning: null,
         clinicalNotes: "",
         pharmacistNotes: "",
       });
 
-      alert(`Refill encounter ${currentEncounterId ? "updated" : "created"} successfully!`);
+      alert(
+        `Refill encounter ${
+          currentEncounterId ? "updated" : "created"
+        } successfully!`
+      );
+      setTimeout(() => {
+        window.location.reload()
+      }, 1)
     } catch (error) {
       console.error("Error saving encounter:", error);
-      setSubmitError(`Failed to ${currentEncounterId ? "update" : "create"} refill encounter. Please try again.`);
+      setSubmitError(
+        `Failed to ${
+          currentEncounterId ? "update" : "create"
+        } refill encounter. Please try again.`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -426,7 +449,10 @@ export function PatientDetails() {
                         </p>
                         {encounter.details.isOnArt && (
                           <>
-                            <svg viewBox="0 0 2 2" className="h-0.5 w-0.5 fill-current">
+                            <svg
+                              viewBox="0 0 2 2"
+                              className="h-0.5 w-0.5 fill-current"
+                            >
                               <circle cx={1} cy={1} r={1} />
                             </svg>
                             <p>ART Regimen: {encounter.details.artRegimen}</p>
@@ -454,8 +480,12 @@ export function PatientDetails() {
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No Patient Data</h3>
-          <p className="mt-1 text-sm text-gray-500">Please select a patient from the list.</p>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">
+            No Patient Data
+          </h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Please select a patient from the list.
+          </p>
           <div className="mt-6">
             <button
               onClick={() => navigate("/patients")}
@@ -486,22 +516,23 @@ export function PatientDetails() {
                 <h1 className="text-xl font-semibold text-gray-900">
                   Patient Details
                 </h1>
-                <p className="text-sm text-gray-500">ID: {patient.identifier}</p>
+                <p className="text-sm text-gray-500">
+                  ID: {patient.identifier}
+                </p>
               </div>
             </div>
             <button
-  onClick={() => setShowRefillForm(true)}
-  disabled={patient.dispense_status === 'Dispensed'}
-  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-    patient.dispense_status === 'Dispensed'
-      ? 'bg-gray-400 text-white cursor-not-allowed'
-      : 'bg-blue-600 text-white hover:bg-blue-500 focus-visible:outline-blue-600'
-  }`}
->
-  <Plus className="h-4 w-4" />
-  New Refill
-</button>
-
+              onClick={() => setShowRefillForm(true)}
+              disabled={patient.dispense_status === "Dispensed"}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                patient.dispense_status === "Dispensed"
+                  ? "bg-gray-400 text-white cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-500 focus-visible:outline-blue-600"
+              }`}
+            >
+              <Plus className="h-4 w-4" />
+              New Refill
+            </button>
           </div>
         </div>
       </header>
@@ -516,8 +547,12 @@ export function PatientDetails() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500">Patient ID</dt>
-                    <dd className="text-lg font-semibold text-gray-900">{patient.identifier}</dd>
+                    <dt className="text-sm font-medium text-gray-500">
+                      Patient ID
+                    </dt>
+                    <dd className="text-lg font-semibold text-gray-900">
+                      {patient.identifier}
+                    </dd>
                   </dl>
                 </div>
               </div>
@@ -532,11 +567,57 @@ export function PatientDetails() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500">Prescription Date</dt>
+                    <dt className="text-sm font-medium text-gray-500">
+                      Prescription Date
+                    </dt>
                     <dd className="text-lg font-semibold text-gray-900">
                       {patient.prescription_date
                         ? formatDate(new Date(patient.prescription_date))
-                        : 'Not Available'}
+                        : "Not Available"}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg bg-white shadow">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <CalendarDays className="h-6 w-6 text-gray-400" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500">
+                      Medication Pickup Date
+                    </dt>
+                    <dd className="text-lg font-semibold text-gray-900">
+                      {patient.medication_pickup_date
+                        ? formatDate(new Date(patient.medication_pickup_date))
+                        : "Not Available"}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg bg-white shadow">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <CalendarDays className="h-6 w-6 text-gray-400" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500">
+                      Return to Clinic Date
+                    </dt>
+                    <dd className="text-lg font-semibold text-gray-900">
+                      {patient.return_to_clinic_date
+                        ? formatDate(new Date(patient.return_to_clinic_date))
+                        : "Not Available"}
                     </dd>
                   </dl>
                 </div>
@@ -552,7 +633,9 @@ export function PatientDetails() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500">Medications</dt>
+                    <dt className="text-sm font-medium text-gray-500">
+                      Medications
+                    </dt>
                     <dd className="text-lg font-semibold text-gray-900">
                       {patient.medications.length}
                     </dd>
@@ -570,14 +653,16 @@ export function PatientDetails() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500">Status</dt>
+                    <dt className="text-sm font-medium text-gray-500">
+                      Status
+                    </dt>
                     <dd>
                       <span
                         className={cn(
                           "inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium",
-                          patient.dispense_status === 'Not Dispensed'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-green-100 text-green-800'
+                          patient.dispense_status === "Not Dispensed"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-green-100 text-green-800"
                         )}
                       >
                         {patient.dispense_status}
@@ -617,15 +702,23 @@ export function PatientDetails() {
                           {medication.name}
                         </p>
                         <div className="mt-1 flex items-center gap-x-2 text-xs leading-5 text-gray-500">
-                          <p className="truncate">Frequency: {medication.frequency}</p>
-                          <svg viewBox="0 0 2 2" className="h-0.5 w-0.5 fill-current">
+                          <p className="truncate">
+                            Frequency: {medication.frequency}
+                          </p>
+                          <svg
+                            viewBox="0 0 2 2"
+                            className="h-0.5 w-0.5 fill-current"
+                          >
                             <circle cx={1} cy={1} r={1} />
                           </svg>
                           <p>Duration: {medication.duration} days</p>
-                          <svg viewBox="0 0 2 2" className="h-0.5 w-0.5 fill-current">
+                          <svg
+                            viewBox="0 0 2 2"
+                            className="h-0.5 w-0.5 fill-current"
+                          >
                             <circle cx={1} cy={1} r={1} />
                           </svg>
-                          <p>Dispensed: {medication.dispensed}</p>
+                          <p>No. Of Pills Dispensed: {medication.dispensed}</p>
                         </div>
                       </div>
                     </div>
@@ -705,17 +798,27 @@ export function PatientDetails() {
                       </label>
                       <select
                         className="block border p-1.5 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        value={refillForm.isOnArt.toString()}
+                        value={
+                          refillForm.isOnArt === null
+                            ? ""
+                            : refillForm.isOnArt.toString()
+                        }
                         onChange={(e) =>
-                          handleFormChange("isOnArt", e.target.value === "true")
+                          handleFormChange(
+                            "isOnArt",
+                            e.target.value === ""
+                              ? null
+                              : e.target.value === "true"
+                          )
                         }
                         required
                       >
-                        <option value=" "></option>
+                        <option value="">Select an option</option>
                         <option value="true">Yes</option>
                         <option value="false">No</option>
                       </select>
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Patient's ART regimen, adults:
@@ -730,7 +833,7 @@ export function PatientDetails() {
                         required
                       />
                     </div>
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                       Line of ART patient is taking:
                       </label>
@@ -743,7 +846,7 @@ export function PatientDetails() {
                         }
                         required
                       />
-                    </div>
+                    </div> */}
                   </FormSection>
 
                   <FormSection title="Assessment" id="assessment">
@@ -753,14 +856,21 @@ export function PatientDetails() {
                       </label>
                       <select
                         className="block border p-1.5 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        value={refillForm.dispenseCondom.toString()}
+                        value={
+                          refillForm.dispenseCondom === null
+                            ? ""
+                            : refillForm.dispenseCondom.toString()
+                        }
                         onChange={(e) =>
                           handleFormChange(
                             "dispenseCondom",
-                            e.target.value === "true"
+                            e.target.value === ""
+                              ? null
+                              : e.target.value === "true"
                           )
                         }
                       >
+                        <option value="">Select an option</option>
                         <option value="true">Yes</option>
                         <option value="false">No</option>
                       </select>
@@ -771,14 +881,21 @@ export function PatientDetails() {
                       </label>
                       <select
                         className="block border p-1.5 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        value={refillForm.familyPlanning.toString()}
+                        value={
+                          refillForm.familyPlanning === null
+                            ? ""
+                            : refillForm.familyPlanning.toString()
+                        }
                         onChange={(e) =>
                           handleFormChange(
                             "familyPlanning",
-                            e.target.value === "true"
+                            e.target.value === ""
+                              ? null
+                              : e.target.value === "true"
                           )
                         }
                       >
+                        <option value="">Select an option</option>
                         <option value="true">Yes</option>
                         <option value="false">No</option>
                       </select>
@@ -789,50 +906,73 @@ export function PatientDetails() {
                       </label>
                       <select
                         className="block border p-1.5 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        value={refillForm.patientSick.toString()}
+                        value={
+                          refillForm.patientSick === null
+                            ? ""
+                            : refillForm.patientSick.toString()
+                        }
                         onChange={(e) =>
                           handleFormChange(
                             "patientSick",
-                            e.target.value === "true"
+                            e.target.value === ""
+                              ? null
+                              : e.target.value === "true"
                           )
                         }
                       >
+                        <option value="">Select an option</option>
                         <option value="true">Yes</option>
                         <option value="false">No</option>
                       </select>
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Adherence concerns?
                       </label>
                       <select
                         className="block border p-1.5 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        value={refillForm.adherenceConcerns.toString()}
+                        value={
+                          refillForm.adherenceConcerns === null
+                            ? ""
+                            : refillForm.adherenceConcerns.toString()
+                        }
                         onChange={(e) =>
                           handleFormChange(
                             "adherenceConcerns",
-                            e.target.value === "true"
+                            e.target.value === ""
+                              ? null
+                              : e.target.value === "true"
                           )
                         }
                       >
+                        <option value="">Select an option</option>
                         <option value="true">Yes</option>
                         <option value="false">No</option>
                       </select>
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Medication refills picked up?
                       </label>
                       <select
                         className="block border p-1.5 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        value={refillForm.refillsPickedUp.toString()}
+                        value={
+                          refillForm.refillsPickedUp === null
+                            ? ""
+                            : refillForm.refillsPickedUp.toString()
+                        }
                         onChange={(e) =>
                           handleFormChange(
                             "refillsPickedUp",
-                            e.target.value === "true"
+                            e.target.value === ""
+                              ? null
+                              : e.target.value === "true"
                           )
                         }
                       >
+                        <option value="">Select an option</option>
                         <option value="true">Yes</option>
                         <option value="false">No</option>
                       </select>
